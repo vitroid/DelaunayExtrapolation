@@ -60,6 +60,45 @@ class DelaunayE(Delaunay):
         ratio[0]  = 1 - np.sum(ratio[1:])
         return self.simplices[which], ratio
 
+    def extrapolate_simplices(self, p):
+        """
+        A collective version of extrapolate_simplex
+        """
+        A = self.planes[:, :-2] @ p.T
+        B = self.planes[:, -1] - A.T
+        z = B / self.planes[:,-2]
+        which = np.argmax(z, axis=1)
+        return which
+
+    def mixratios(self, p):
+        """
+        A collective version of mixratio.
+
+        Parameter:
+            p           the pointS to be interpolated.
+        Returns:
+            v           a list of list of vertices of the simplex that contains p
+            ratio       mixing ratioS for the vertices
+        """
+        which = self.extrapolate_simplices(p)
+        #それぞれのsimplexでoriginを定める。
+        origins = self._points[self.simplices[:,0]]
+        ps = np.zeros([self.nsimplex, self.ndim, self.ndim])
+        for i in range(self.ndim):
+            ps[:, i, :] = self._points[self.simplices[:,i+1]] - origins
+        psi = np.zeros_like(ps)
+        for i in range(self.nsimplex):
+            psi[i] = np.linalg.inv(ps[i])
+        # position of p relative to origin
+        pp = p - origins[which]
+        # relative positions of the vextices of the simplex
+        ratio = np.zeros([p.shape[0], self.ndim+1])
+        for i in range(p.shape[0]):
+            ratio[i, 1:] = pp[i] @ psi[which[i]]
+        ratio[:, 0]  = 1 - np.sum(ratio[:, 1:], axis=1)
+        return self.simplices[which], ratio
+
+
 
 if __name__ == "__main__":
     # 代表点。4つだけ。
