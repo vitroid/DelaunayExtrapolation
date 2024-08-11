@@ -48,7 +48,10 @@ class DelaunayE(Delaunay):
             v           list of vertices of the simplex that contains p
             ratio       mixing ratio for the vertices
         """
-        which = self.extrapolate_simplex(p)
+        ps = np.array([p])
+        which = self.find_simplex(ps)[0]
+        if which < 0:
+            which = self.extrapolate_simplex(p)
         # choose the first vertex of the simplex as the origin
         origin = self._points[self.simplices[which][0]]
         # position of p relative to origin
@@ -58,6 +61,13 @@ class DelaunayE(Delaunay):
         ratio = np.zeros(self.ndim+1)
         ratio[1:] = pp @ np.linalg.inv(ps)
         ratio[0]  = 1 - np.sum(ratio[1:])
+
+        b = self.transform[which,:-1] @ (p - self.transform[which,-1]).T
+        b = np.c_[b.T, 1-b.sum()]
+        print(b)
+        c = np.c_[b.T, 1 - b.sum(axis=0)]
+        print(c)
+        print(ratio)
         return self.simplices[which], ratio
 
     def extrapolate_simplices(self, p):
