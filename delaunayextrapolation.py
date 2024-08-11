@@ -6,14 +6,18 @@ def plane(p):
     # ax+by+cz+e=1を満足するabceを求める。
     # (x,y,z,1) @ (a,b,c,e) = 1
     # pseudo-inverse matrix?
-    q = np.zeros([p.shape[0], p.shape[1] + 1])
-    q[:, :-1] = p
-    q[:, -1] = 1
-    qplus = q.T @ np.linalg.inv(q @ q.T)
-    abce = qplus @ np.ones(q.shape[0])
-    # ax+by+cz = 1-e = d
-    abcd = abce.copy()
-    abcd[-1] = 1 - abce[-1]
+    # q = np.zeros([p.shape[0], p.shape[1] + 1])
+    # q[:, :-1] = p
+    # q[:, -1] = 1
+    # qplus = q.T @ np.linalg.inv(q @ q.T)
+    # abce = qplus @ np.ones(q.shape[0])
+    # # ax+by+cz = 1-e = d
+    # abcd = abce.copy()
+    # abcd[-1] = 1 - abce[-1]
+    # return abcd
+    abc = np.linalg.inv(p) @ np.ones_like(p[0])
+    abcd = np.ones(len(abc) + 1)
+    abcd[:-1] = abc
     return abcd
 
 
@@ -21,11 +25,12 @@ class DelaunayE(Delaunay):
     def __init__(self, *args, **kwarg):
         super().__init__(*args, **kwarg)
         # 次元を上げる。2次元なら3次元にする。
-        pulledup = np.zeros([self._points.shape[0], self._points.shape[1] + 1])
+        pulledup = np.zeros([len(self._points), self.ndim + 1])
         # 2次元まではそのままコピー
         pulledup[:, :-1] = self._points
         # 3次元目には、二乗和を入れる。
-        pulledup[:, -1] = np.sum(pulledup[:] ** 2, axis=1)
+        pulledup[:, -1] = np.sum(self._points**2, axis=1)
+        self.pulledup = pulledup
 
         self.planes = np.zeros([self.nsimplex, self.ndim + 2])
         for i, simplex in enumerate(self.simplices):
@@ -34,8 +39,20 @@ class DelaunayE(Delaunay):
             abcd = plane(pulledup[simplex])
             self.planes[i] = abcd
 
-    def extrapolate_simplex(self, p):
-        z = (self.planes[:, -1] - self.planes[:, :-2] @ p) / self.planes[:, -2]
+        # test
+        # simplex = self.simplices[0]
+        # point = self._points[simplex[0]]
+        # ab, c, d = self.planes[0, :-2], self.planes[0, -2], self.planes[0, -1]
+        # print(ab, c, d)
+        # z = (d - ab @ point) / c
+        # print(point, z, pulledup[simplex[0]])
+        # assert False
+
+    def extrapolate_simplex(self, point):
+        # ax+by+cz = d
+        # z = (d - (a,b)@(x,y)) / c
+        ab, c, d = self.planes[:, :-2], self.planes[:, -2], self.planes[:, -1]
+        z = (d - ab @ point) / c
         which = np.argmax(z)
         return which
 
@@ -49,18 +66,16 @@ class DelaunayE(Delaunay):
             v           list of vertices of the simplex that contains p
             ratio       mixing ratio for the vertices
         """
-        ps = np.array([p])
-        which = self.find_simplex(ps)[0]
-        if which < 0:
-            which = self.extrapolate_simplex(p)
+        which = self.extrapolate_simplex(p)
+        simplex = self.simplices[which]
         # choose the first vertex of the simplex as the origin
-        origin = self._points[self.simplices[which][0]]
+        origin = self._points[simplex[0]]
         # position of p relative to origin
-        pp = p - origin
+        rel_p = p - origin
         # relative positions of the vextices of the simplex
-        ps = self._points[self.simplices[which][1:]] - origin
+        other_vertices = self._points[simplex[1:]] - origin
         ratio = np.zeros(self.ndim + 1)
-        ratio[1:] = pp @ np.linalg.inv(ps)
+        ratio[1:] = rel_p @ np.linalg.inv(other_vertices)
         ratio[0] = 1 - np.sum(ratio[1:])
 
         # b = self.transform[which,:-1] @ (p - self.transform[which,-1]).T
@@ -69,7 +84,7 @@ class DelaunayE(Delaunay):
         # c = np.c_[b.T, 1 - b.sum(axis=0)]
         # print(c)
         # print(ratio)
-        return self.simplices[which], ratio
+        return simplex, ratio
 
     def extrapolate_simplices(self, p):
         """
@@ -116,7 +131,7 @@ if __name__ == "__main__":
 
     # いきなりDelaunay三角形分割
     tri = DelaunayE(points)
-    p = np.array([0.5, 0.7])
+    p = np.array([0.5, -0.3])
     # 点pを含む三角形(点が3次元以上の場合は単体)と、それらの混合比
     v, ratio = tri.mixratio(p)
     print(v, ratio)
