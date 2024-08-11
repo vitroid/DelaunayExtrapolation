@@ -5,3 +5,9 @@ __pycache__/
 
 build/
 dist/
+
+*.jpeg
+*.png
+@
+*.lock
+.DS_Store*

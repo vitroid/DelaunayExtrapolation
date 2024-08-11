@@ -1,12 +1,13 @@
 from scipy.spatial import Delaunay
 import numpy as np
 
+
 def plane(p):
     # ax+by+cz+e=1を満足するabceを求める。
     # (x,y,z,1) @ (a,b,c,e) = 1
     # pseudo-inverse matrix?
-    q = np.zeros([p.shape[0], p.shape[1]+1])
-    q[:,:-1] = p
+    q = np.zeros([p.shape[0], p.shape[1] + 1])
+    q[:, :-1] = p
     q[:, -1] = 1
     qplus = q.T @ np.linalg.inv(q @ q.T)
     abce = qplus @ np.ones(q.shape[0])
@@ -20,13 +21,13 @@ class DelaunayE(Delaunay):
     def __init__(self, *args, **kwarg):
         super().__init__(*args, **kwarg)
         # 次元を上げる。2次元なら3次元にする。
-        pulledup = np.zeros([self._points.shape[0], self._points.shape[1]+1])
+        pulledup = np.zeros([self._points.shape[0], self._points.shape[1] + 1])
         # 2次元まではそのままコピー
-        pulledup[:,:-1] = self._points
+        pulledup[:, :-1] = self._points
         # 3次元目には、二乗和を入れる。
-        pulledup[:, -1] = np.sum(pulledup[:]**2, axis=1)
+        pulledup[:, -1] = np.sum(pulledup[:] ** 2, axis=1)
 
-        self.planes = np.zeros([self.nsimplex, self.ndim+2])
+        self.planes = np.zeros([self.nsimplex, self.ndim + 2])
         for i, simplex in enumerate(self.simplices):
             # simplexの3点を通る方程式を定める。
             # ax+by+cz=d を3つの点のいずれでも満たすようなa,b,c,dを求めたい。
@@ -34,7 +35,7 @@ class DelaunayE(Delaunay):
             self.planes[i] = abcd
 
     def extrapolate_simplex(self, p):
-        z = (self.planes[:, -1] - self.planes[:, :-2] @ p) / self.planes[:,-2]
+        z = (self.planes[:, -1] - self.planes[:, :-2] @ p) / self.planes[:, -2]
         which = np.argmax(z)
         return which
 
@@ -58,16 +59,16 @@ class DelaunayE(Delaunay):
         pp = p - origin
         # relative positions of the vextices of the simplex
         ps = self._points[self.simplices[which][1:]] - origin
-        ratio = np.zeros(self.ndim+1)
+        ratio = np.zeros(self.ndim + 1)
         ratio[1:] = pp @ np.linalg.inv(ps)
-        ratio[0]  = 1 - np.sum(ratio[1:])
+        ratio[0] = 1 - np.sum(ratio[1:])
 
-        b = self.transform[which,:-1] @ (p - self.transform[which,-1]).T
-        b = np.c_[b.T, 1-b.sum()]
-        print(b)
-        c = np.c_[b.T, 1 - b.sum(axis=0)]
-        print(c)
-        print(ratio)
+        # b = self.transform[which,:-1] @ (p - self.transform[which,-1]).T
+        # b = np.c_[b.T, 1-b.sum()]
+        # print(b)
+        # c = np.c_[b.T, 1 - b.sum(axis=0)]
+        # print(c)
+        # print(ratio)
         return self.simplices[which], ratio
 
     def extrapolate_simplices(self, p):
@@ -76,7 +77,7 @@ class DelaunayE(Delaunay):
         """
         A = self.planes[:, :-2] @ p.T
         B = self.planes[:, -1] - A.T
-        z = B / self.planes[:,-2]
+        z = B / self.planes[:, -2]
         which = np.argmax(z, axis=1)
         return which
 
@@ -91,23 +92,22 @@ class DelaunayE(Delaunay):
             ratio       mixing ratioS for the vertices
         """
         which = self.extrapolate_simplices(p)
-        #それぞれのsimplexでoriginを定める。
-        origins = self._points[self.simplices[:,0]]
+        # それぞれのsimplexでoriginを定める。
+        origins = self._points[self.simplices[:, 0]]
         ps = np.zeros([self.nsimplex, self.ndim, self.ndim])
         for i in range(self.ndim):
-            ps[:, i, :] = self._points[self.simplices[:,i+1]] - origins
+            ps[:, i, :] = self._points[self.simplices[:, i + 1]] - origins
         psi = np.zeros_like(ps)
         for i in range(self.nsimplex):
             psi[i] = np.linalg.inv(ps[i])
         # position of p relative to origin
         pp = p - origins[which]
         # relative positions of the vextices of the simplex
-        ratio = np.zeros([p.shape[0], self.ndim+1])
+        ratio = np.zeros([p.shape[0], self.ndim + 1])
         for i in range(p.shape[0]):
             ratio[i, 1:] = pp[i] @ psi[which[i]]
-        ratio[:, 0]  = 1 - np.sum(ratio[:, 1:], axis=1)
+        ratio[:, 0] = 1 - np.sum(ratio[:, 1:], axis=1)
         return self.simplices[which], ratio
-
 
 
 if __name__ == "__main__":
