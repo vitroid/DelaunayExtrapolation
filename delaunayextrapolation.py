@@ -3,22 +3,9 @@ import numpy as np
 
 
 def plane(p):
-    # ax+by+cz+e=1を満足するabceを求める。
-    # (x,y,z,1) @ (a,b,c,e) = 1
-    # pseudo-inverse matrix?
-    # q = np.zeros([p.shape[0], p.shape[1] + 1])
-    # q[:, :-1] = p
-    # q[:, -1] = 1
-    # qplus = q.T @ np.linalg.inv(q @ q.T)
-    # abce = qplus @ np.ones(q.shape[0])
-    # # ax+by+cz = 1-e = d
-    # abcd = abce.copy()
-    # abcd[-1] = 1 - abce[-1]
-    # return abcd
+    # ax+by+cz=1を満足するabcを求める。
     abc = np.linalg.inv(p) @ np.ones_like(p[0])
-    abcd = np.ones(len(abc) + 1)
-    abcd[:-1] = abc
-    return abcd
+    return abc
 
 
 class DelaunayE(Delaunay):
@@ -32,27 +19,18 @@ class DelaunayE(Delaunay):
         pulledup[:, -1] = np.sum(self._points**2, axis=1)
         self.pulledup = pulledup
 
-        self.planes = np.zeros([self.nsimplex, self.ndim + 2])
+        self.planes = np.zeros([self.nsimplex, self.ndim + 1])
         for i, simplex in enumerate(self.simplices):
             # simplexの3点を通る方程式を定める。
             # ax+by+cz=d を3つの点のいずれでも満たすようなa,b,c,dを求めたい。
-            abcd = plane(pulledup[simplex])
-            self.planes[i] = abcd
-
-        # test
-        # simplex = self.simplices[0]
-        # point = self._points[simplex[0]]
-        # ab, c, d = self.planes[0, :-2], self.planes[0, -2], self.planes[0, -1]
-        # print(ab, c, d)
-        # z = (d - ab @ point) / c
-        # print(point, z, pulledup[simplex[0]])
-        # assert False
+            abc = plane(pulledup[simplex])
+            self.planes[i] = abc
 
     def extrapolate_simplex(self, point):
-        # ax+by+cz = d
-        # z = (d - (a,b)@(x,y)) / c
-        ab, c, d = self.planes[:, :-2], self.planes[:, -2], self.planes[:, -1]
-        z = (d - ab @ point) / c
+        # ax+by+cz = 1
+        # z = (1 - (a,b)@(x,y)) / c
+        ab, c = self.planes[:, :-1], self.planes[:, -1]
+        z = (1 - ab @ point) / c
         which = np.argmax(z)
         return which
 
@@ -78,12 +56,6 @@ class DelaunayE(Delaunay):
         ratio[1:] = rel_p @ np.linalg.inv(other_vertices)
         ratio[0] = 1 - np.sum(ratio[1:])
 
-        # b = self.transform[which,:-1] @ (p - self.transform[which,-1]).T
-        # b = np.c_[b.T, 1-b.sum()]
-        # print(b)
-        # c = np.c_[b.T, 1 - b.sum(axis=0)]
-        # print(c)
-        # print(ratio)
         return simplex, ratio
 
     def extrapolate_simplices(self, p):
